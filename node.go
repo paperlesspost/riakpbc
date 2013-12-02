@@ -158,8 +158,10 @@ func (node *Node) Ping() bool {
 
 // Close the connection
 func (node *Node) Close() {
-	node.conn.Close()
-	node.conn = nil
+	if node.IsConnected() == true {
+		node.conn.Close()
+		node.conn = nil
+	}
 }
 
 func (node *Node) read() (respraw []byte, err error) {
