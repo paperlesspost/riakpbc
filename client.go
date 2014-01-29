@@ -61,7 +61,7 @@ func (c *Client) Dial() error {
 		return ErrZeroNodes
 	}
 
-	go c.BackgroundNodePing()
+	// go c.BackgroundNodePing()
 
 	return nil
 }
