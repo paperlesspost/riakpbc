@@ -6,8 +6,7 @@ import (
 
 func BenchmarkReadSync(b *testing.B) {
 	b.StopTimer()
-	client := NewClient([]string{"127.0.0.1:8087", "127.0.0.1:8088"})
-	client.Dial()
+	client, _ := NewClient([]string{"127.0.0.1:8087", "127.0.0.1:8088"})
 	client.StoreObject("bucket", "key", &Data{Data: "rules"})
 
 	b.StartTimer()
@@ -19,8 +18,7 @@ func BenchmarkReadSync(b *testing.B) {
 
 func BenchmarkReadAsync(b *testing.B) {
 	b.StopTimer()
-	client := NewClient([]string{"127.0.0.1:8087", "127.0.0.1:8088"})
-	client.Dial()
+	client, _ := NewClient([]string{"127.0.0.1:8087", "127.0.0.1:8088"})
 	client.StoreObject("bucket", "key", &Data{Data: "rules"})
 
 	ch := make(chan bool, b.N)
@@ -44,8 +42,7 @@ func BenchmarkReadAsync(b *testing.B) {
 
 func BenchmarkStoreStruct(b *testing.B) {
 	b.StopTimer()
-	client := NewClient([]string{"127.0.0.1:8087", "127.0.0.1:8088"})
-	client.Dial()
+	client, _ := NewClient([]string{"127.0.0.1:8087", "127.0.0.1:8088"})
 	client.StoreObject("bucket", "key", &Data{Data: "rules"})
 
 	b.StartTimer()
@@ -57,8 +54,7 @@ func BenchmarkStoreStruct(b *testing.B) {
 
 func BenchmarkStoreRpbContent(b *testing.B) {
 	b.StopTimer()
-	client := NewClient([]string{"127.0.0.1:8087", "127.0.0.1:8088"})
-	client.Dial()
+	client, _ := NewClient([]string{"127.0.0.1:8087", "127.0.0.1:8088"})
 
 	data := &RpbContent{
 		Value:       []byte("{\"data\":\"rules\"}"),

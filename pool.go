@@ -8,33 +8,38 @@ import (
 )
 
 const (
-	NODE_WRITE_RETRY     time.Duration = time.Second * 10 // 10s
-	NODE_READ_RETRY      time.Duration = time.Second * 10 // 10s
-	NODE_ERROR_THRESHOLD float64       = 0.5
+	NODE_WRITE_RETRY time.Duration = time.Second * 10 // 10s
+	NODE_READ_RETRY  time.Duration = time.Second * 10 // 10s
 )
 
 type Pool struct {
-	nodes map[string]*Node // index the node with its address string
+	cluster []string
+	nodes   chan *Node
 	sync.Mutex
 }
 
 // NewPool returns an instantiated pool given a slice of node addresses.
-func NewPool(cluster []string) *Pool {
-	rand.Seed(time.Now().UTC().UnixNano())
-	nodeMap := make(map[string]*Node, len(cluster))
+func NewPool(cluster []string) (*Pool, error) {
+	nodes := make(chan *Node, len(cluster))
 
+	nodesUp := false
 	for _, node := range cluster {
 		newNode, err := NewNode(node, NODE_READ_RETRY, NODE_WRITE_RETRY)
 		if err == nil {
-			nodeMap[node] = newNode
+			nodesUp = true
+			nodes <- newNode
+
 		}
 	}
-
+	if nodesUp == false {
+		return nil, ErrAllNodesDown
+	}
 	pool := &Pool{
-		nodes: nodeMap,
+		cluster: cluster,
+		nodes:   nodes,
 	}
 
-	return pool
+	return pool, nil
 }
 
 // SelectNode returns a node from the pool using weighted error selection.
@@ -45,56 +50,31 @@ func (pool *Pool) SelectNode() (*Node, error) {
 	pool.Lock()
 	defer pool.Unlock()
 
-	var possibleNodes []*Node
-	for _, node := range pool.nodes {
-		if node.ErrorRate() < NODE_ERROR_THRESHOLD {
-			possibleNodes = append(possibleNodes, node)
-		}
+	select {
+	case n := <-pool.nodes:
+		return n, nil
+	default:
+		return NewNode(pool.cluster[rand.Intn(len(pool.cluster))], NODE_READ_RETRY, NODE_WRITE_RETRY)
 	}
-
-	count := len(possibleNodes)
-
-	if count > 0 {
-		return possibleNodes[rand.Int31n(int32(count))], nil
-	}
-
 	return nil, ErrAllNodesDown
 }
 
-func (pool *Pool) Ping() {
+func (pool *Pool) ReturnNode(node *Node) {
 	pool.Lock()
 	defer pool.Unlock()
-
-	for _, node := range pool.nodes {
-		nodeGood := node.Ping()
-		if nodeGood == false {
-			node.RecordError(0.1)
-			node.Lock()
-			node.Close()
-			node.Dial()
-			node.Unlock()
-		} else {
-			node.SetOk(true)
-		}
-
-	}
-}
-
-func (pool *Pool) Close() {
-	for _, node := range pool.nodes {
+	select {
+	case pool.nodes <- node:
+	default:
 		node.Close()
 	}
 }
 
-func (pool *Pool) Size() int {
-	return len(pool.nodes)
+func (pool *Pool) Close() {
+	for node := range pool.nodes {
+		node.Close()
+	}
 }
 
 func (pool *Pool) String() string {
-	var outString string
-	for _, node := range pool.nodes {
-		nodeString := fmt.Sprintf(" [%s %f <%t>] ", node.addr, node.ErrorRate(), node.GetOk())
-		outString += nodeString
-	}
-	return outString
+	return fmt.Sprintf("riakpbc cluster %v", pool.cluster)
 }

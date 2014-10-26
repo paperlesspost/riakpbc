@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"code.google.com/p/goprotobuf/proto"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -16,9 +17,6 @@ type Node struct {
 	conn         *net.TCPConn
 	readTimeout  time.Duration
 	writeTimeout time.Duration
-	errorRate    *Decaying
-	ok           bool
-	oklock       *sync.Mutex
 	sync.Mutex
 }
 
@@ -34,12 +32,9 @@ func NewNode(addr string, readTimeout, writeTimeout time.Duration) (*Node, error
 		tcpAddr:      tcpaddr,
 		readTimeout:  readTimeout,
 		writeTimeout: writeTimeout,
-		errorRate:    NewDecaying(),
-		ok:           true,
-		oklock:       &sync.Mutex{},
 	}
-
-	return node, nil
+	err = node.Dial()
+	return node, err
 }
 
 // Dial connects to a single riak node.
@@ -54,44 +49,10 @@ func (node *Node) Dial() (err error) {
 	return nil
 }
 
-// ErrorRate safely returns the current Node's error rate.
-func (node *Node) ErrorRate() float64 {
-	return node.errorRate.Value()
-}
-
-// RecordError increments the current error value - see decaying.go
-func (node *Node) RecordError(amount float64) {
-	node.SetOk(false)
-	node.errorRate.Add(amount)
-}
-
-func (node *Node) GetOk() bool {
-	var out bool
-	node.oklock.Lock()
-	out = node.ok
-	node.oklock.Unlock()
-	return out
-}
-
-func (node *Node) SetOk(ok bool) {
-	node.oklock.Lock()
-	node.ok = ok
-	node.oklock.Unlock()
-}
-
-func (node *Node) IsConnected() bool {
-	return node.conn != nil
-}
-
 func (node *Node) ReqResp(reqstruct interface{}, structname string, raw bool) (response interface{}, err error) {
 	node.Lock()
 	defer node.Unlock()
-	if node.IsConnected() != true {
-		err = node.Dial()
-		if err != nil {
-			return nil, err
-		}
-	}
+	fmt.Printf("Node ReqResp %s\n", node.addr)
 	if raw == true {
 		err = node.rawRequest(reqstruct.([]byte), structname)
 	} else {
@@ -159,10 +120,8 @@ func (node *Node) Ping() bool {
 
 // Close the connection
 func (node *Node) Close() {
-	if node.IsConnected() == true {
-		node.conn.Close()
-		node.conn = nil
-	}
+	node.conn.Close()
+	node.conn = nil
 }
 
 func (node *Node) read() (respraw []byte, err error) {
@@ -174,7 +133,6 @@ func (node *Node) read() (respraw []byte, err error) {
 	// First 4 bytes are always size of message.
 	n, err := io.ReadFull(node.conn, buf)
 	if err != nil {
-		node.RecordError(1.0)
 		return nil, err
 	}
 
@@ -185,7 +143,6 @@ func (node *Node) read() (respraw []byte, err error) {
 		// read rest of message
 		m, err := io.ReadFull(node.conn, data)
 		if err != nil {
-			node.RecordError(1.0)
 			return nil, err
 		}
 		if m == int(size) {
@@ -193,7 +150,6 @@ func (node *Node) read() (respraw []byte, err error) {
 		}
 	}
 
-	node.RecordError(1.0)
 	return nil, nil
 }
 
@@ -205,7 +161,6 @@ func (node *Node) response() (response interface{}, err error) {
 
 	err = validateResponseHeader(rawresp)
 	if err != nil {
-		node.RecordError(1.0)
 		return nil, err
 	}
 
@@ -225,7 +180,6 @@ func (node *Node) write(formattedRequest []byte) (err error) {
 
 	_, err = node.conn.Write(formattedRequest)
 	if err != nil {
-		node.RecordError(1.0)
 		return err
 	}
 

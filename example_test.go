@@ -12,12 +12,7 @@ type ExampleData struct {
 
 func ExampleClient() {
 	// Initialize riakpbc against a 3 node cluster
-	riak := NewClient([]string{"127.0.0.1:8087", "127.0.0.0:9089", "127.0.0.0:9090"})
-
-	// Dial all the nodes.
-	if err := riak.Dial(); err != nil {
-		log.Fatalf("Dialing failed: %v", err)
-	}
+	riak, _ := NewClient([]string{"127.0.0.1:8087", "127.0.0.0:9089", "127.0.0.0:9090"})
 
 	// Set Client ID
 	if _, err := riak.SetClientId("coolio"); err != nil {
@@ -71,10 +66,10 @@ func ExampleClientWithCoder() {
 	//
 	// Alternative marshallers can be built from this interface.
 	coder := NewCoder("json", JsonMarshaller, JsonUnmarshaller)
-	riakCoder := NewClientWithCoder([]string{"127.0.0.1:8087", "127.0.0.0:9089", "127.0.0.0:9090"}, coder)
+	riakCoder, err := NewClientWithCoder([]string{"127.0.0.1:8087", "127.0.0.0:9089", "127.0.0.0:9090"}, coder)
 
 	// Dial all the nodes.
-	if err := riakCoder.Dial(); err != nil {
+	if err != nil {
 		log.Fatalf("Dialing failed: %v", err)
 	}
 

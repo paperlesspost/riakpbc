@@ -19,18 +19,17 @@ type RiakData struct {
 
 func setupConnection(t *testing.T) (client *Client) {
 	coder := NewCoder("json", JsonMarshaller, JsonUnmarshaller)
-	client = NewClientWithCoder([]string{
+	client, err := NewClientWithCoder([]string{
 		"127.0.0.1:8086",
 		"127.0.0.1:8087",
 		"127.0.0.1:8088",
 		"127.0.0.1:8089"},
 		coder)
-	client.EnableLogging()
-	var err error
-	if err = client.Dial(); err != nil {
+	if err != nil {
 		os.Exit(1)
 		t.Error(err.Error())
 	}
+	client.EnableLogging()
 	assert.T(t, err == nil)
 
 	return client
@@ -38,9 +37,8 @@ func setupConnection(t *testing.T) (client *Client) {
 
 func setupSingleNodeConnection(t *testing.T) (client *Client) {
 	coder := NewCoder("json", JsonMarshaller, JsonUnmarshaller)
-	client = NewClientWithCoder([]string{"127.0.0.1:8087"}, coder)
-	var err error
-	if err = client.Dial(); err != nil {
+	client, err := NewClientWithCoder([]string{"127.0.0.1:8087"}, coder)
+	if err != nil {
 		os.Exit(1)
 		t.Error(err.Error())
 	}

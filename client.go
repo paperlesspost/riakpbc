@@ -1,93 +1,50 @@
 package riakpbc
 
-import (
-	"log"
-	"time"
-)
-
 type Client struct {
-	cluster       []string
-	pool          *Pool
-	Coder         *Coder // Coder for (un)marshalling data
-	logging       bool
-	pingFrequency int
-	closed        chan struct{}
+	cluster []string
+	pool    *Pool
+	Coder   *Coder // Coder for (un)marshalling data
+	logging bool
+	closed  chan struct{}
 }
 
 // NewClient accepts a slice of node address strings and returns a Client object.
 //
 // Illegally addressed nodes will be rejected in the NewPool call.
-func NewClient(cluster []string) *Client {
-	return &Client{
-		cluster:       cluster,
-		pool:          NewPool(cluster),
-		logging:       false,
-		pingFrequency: 1000,
-		closed:        make(chan struct{}),
+func NewClient(cluster []string) (*Client, error) {
+	pool, err := NewPool(cluster)
+	if err != nil {
+		return nil, err
 	}
+	return &Client{
+		cluster: cluster,
+		pool:    pool,
+		logging: false,
+		closed:  make(chan struct{}),
+	}, nil
 }
 
 // NewClientWihtCoder accepts a slice of node address strings, a Coder for processing structs into data, and returns a Client object.
 //
 // Illegally addressed nodes will be rejected in the NewPool call.
-func NewClientWithCoder(cluster []string, coder *Coder) *Client {
+func NewClientWithCoder(cluster []string, coder *Coder) (*Client, error) {
+	pool, err := NewPool(cluster)
+	if err != nil {
+		return nil, err
+	}
 	return &Client{
-		cluster:       cluster,
-		pool:          NewPool(cluster),
-		Coder:         coder,
-		logging:       false,
-		pingFrequency: 1000,
-		closed:        make(chan struct{}),
-	}
-}
-
-// Dial connects all nodes in the pool to their addresses via TCP.
-//
-// Nodes which are down get set to redial in the background.
-func (c *Client) Dial() error {
-	c.closed = make(chan struct{})
-
-	for _, node := range c.pool.nodes {
-		err := node.Dial()
-		if err != nil {
-			node.RecordError(10.0)
-			if c.LoggingEnabled() {
-				log.Print("[POOL] Error: ", err)
-			}
-		}
-	}
-
-	if c.pool.Size() < 1 {
-		return ErrZeroNodes
-	}
-
-	// go c.BackgroundNodePing()
-
-	return nil
+		cluster: cluster,
+		pool:    pool,
+		Coder:   coder,
+		logging: false,
+		closed:  make(chan struct{}),
+	}, nil
 }
 
 // Close closes the node TCP connections.
 func (c *Client) Close() {
 	close(c.closed)
 	c.pool.Close()
-}
-
-func (c *Client) BackgroundNodePing() {
-	ticker := time.NewTicker(time.Duration(c.pingFrequency) * time.Millisecond)
-	for {
-		select {
-		case <-ticker.C:
-			c.pool.Ping()
-		case <-c.closed:
-			ticker.Stop()
-			return
-		}
-	}
-}
-
-// SelectNode selects a node from the pool, see *Pool.SelectNode()
-func (c *Client) SelectNode() (*Node, error) {
-	return c.pool.SelectNode()
 }
 
 // Pool returns the pool associated with the client.
@@ -160,10 +117,11 @@ func (c *Client) DoStruct(opts interface{}, in interface{}) (interface{}, error)
 
 // ReqResp is the top level interface for the client for a bulk of Riak operations
 func (c *Client) ReqResp(reqstruct interface{}, structname string, raw bool) (response interface{}, err error) {
-	node, err := c.SelectNode()
+	node, err := c.pool.SelectNode()
 	if err != nil {
 		return nil, err
 	}
+	defer c.pool.ReturnNode(node)
 	return node.ReqResp(reqstruct, structname, raw)
 }
 
@@ -171,10 +129,11 @@ func (c *Client) ReqResp(reqstruct interface{}, structname string, raw bool) (re
 // operations which have to hit the server multiple times to guarantee
 // a complete response: List keys, Map Reduce, etc.
 func (c *Client) ReqMultiResp(reqstruct interface{}, structname string) (response interface{}, err error) {
-	node, err := c.SelectNode()
+	node, err := c.pool.SelectNode()
 	if err != nil {
 		return nil, err
 	}
+	defer c.pool.ReturnNode(node)
 	return node.ReqMultiResp(reqstruct, structname)
 }
 
