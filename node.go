@@ -60,13 +60,11 @@ func (node *Node) ReqResp(reqstruct interface{}, structname string, raw bool) (r
 	}
 
 	if err != nil {
-		node.Close()
 		return nil, err
 	}
 
 	response, err = node.response()
 	if err != nil {
-		node.Close()
 		return nil, err
 	}
 
@@ -167,7 +165,7 @@ func (node *Node) response() (response interface{}, err error) {
 	response, err = unmarshalResponse(rawresp)
 	if response == nil || err != nil {
 		if err.Error() == "object not found" {
-			return nil, err
+			return nil, ErrObjectNotFound
 		}
 		return nil, err
 	}

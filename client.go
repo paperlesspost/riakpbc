@@ -121,8 +121,15 @@ func (c *Client) ReqResp(reqstruct interface{}, structname string, raw bool) (re
 	if err != nil {
 		return nil, err
 	}
-	defer c.pool.ReturnNode(node)
-	return node.ReqResp(reqstruct, structname, raw)
+	response, err = node.ReqResp(reqstruct, structname, raw)
+	// if the error is just a not found error, return the node
+	// to the pool, otherwise, close the conn and dont return it
+	if err != nil && err == ErrObjectNotFound {
+		c.pool.ReturnNode(node)
+	} else {
+		node.Close()
+	}
+	return
 }
 
 // ReqMultiResp is the top level interface for the client for the few
