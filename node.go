@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"code.google.com/p/goprotobuf/proto"
 	"encoding/binary"
-	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -52,7 +51,6 @@ func (node *Node) Dial() (err error) {
 func (node *Node) ReqResp(reqstruct interface{}, structname string, raw bool) (response interface{}, err error) {
 	node.Lock()
 	defer node.Unlock()
-	fmt.Printf("Node ReqResp %s\n", node.addr)
 	if raw == true {
 		err = node.rawRequest(reqstruct.([]byte), structname)
 	} else {
