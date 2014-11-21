@@ -12,8 +12,7 @@ import (
 
 type Node struct {
 	addr         string
-	tcpAddr      *net.TCPAddr
-	conn         *net.TCPConn
+	conn         net.Conn
 	readTimeout  time.Duration
 	writeTimeout time.Duration
 	sync.Mutex
@@ -21,29 +20,23 @@ type Node struct {
 
 // Returns a new Node.
 func NewNode(addr string, readTimeout, writeTimeout time.Duration) (*Node, error) {
-	tcpaddr, err := net.ResolveTCPAddr("tcp", addr)
-	if err != nil {
-		return nil, err
-	}
-
 	node := &Node{
 		addr:         addr,
-		tcpAddr:      tcpaddr,
 		readTimeout:  readTimeout,
 		writeTimeout: writeTimeout,
 	}
-	err = node.Dial()
+	err := node.Dial()
 	return node, err
 }
 
 // Dial connects to a single riak node.
 func (node *Node) Dial() (err error) {
-	node.conn, err = net.DialTCP("tcp", nil, node.tcpAddr)
+	node.conn, err = net.DialTimeout("tcp", node.addr, node.readTimeout)
 	if err != nil {
 		return err
 	}
 
-	node.conn.SetKeepAlive(true)
+	node.conn.(*net.TCPConn).SetKeepAlive(true)
 
 	return nil
 }

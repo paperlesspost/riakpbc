@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	NODE_WRITE_RETRY time.Duration = time.Second * 10 // 10s
-	NODE_READ_RETRY  time.Duration = time.Second * 10 // 10s
+	NODE_WRITE_RETRY time.Duration = time.Second * 5
+	NODE_READ_RETRY  time.Duration = time.Second * 5
 )
 
 type Pool struct {
